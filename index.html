@@ -1,9 +1,339 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>FPS Station Wind History (Past 2 Hours)</title>
+	<style>
+		:root {
+			--bg-color: #071523;
+			--card-bg: #0d2235;
+			--surface-color: #102b42;
+			--surface-hover: #163952;
+			--primary-color: #f4f9fc;
+			--accent-color: #38bdf8;
+			--accent-hover: #7dd3fc;
+			--border-color: #29465c;
+			--text-color: #d7e6ef;
+			--muted-color: #91aabd;
+			--error-color: #fda4af;
+		}
+
+		* {
+			box-sizing: border-box;
+		}
+
+		body {
+			min-height: 100vh;
+			font-family: Bahnschrift, "Trebuchet MS", sans-serif;
+			background:
+				linear-gradient(rgba(56, 189, 248, 0.035) 1px, transparent 1px),
+				linear-gradient(90deg, rgba(56, 189, 248, 0.035) 1px, transparent 1px),
+				linear-gradient(145deg, #071523 0%, #0a2033 55%, #07131f 100%);
+			background-size: 32px 32px, 32px 32px, auto;
+			color: var(--text-color);
+			margin: 0;
+			padding: 2rem;
+			display: flex;
+			justify-content: center;
+			align-items: flex-start;
+		}
+
+		.container {
+			width: 100%;
+			max-width: 750px;
+			background: var(--card-bg);
+			padding: 1.5rem 2rem;
+			border: 1px solid var(--border-color);
+			border-radius: 8px;
+			box-shadow: 0 20px 50px rgba(0, 5, 14, 0.38);
+		}
+
+		.header {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			margin-bottom: 1.5rem;
+			border-bottom: 2px solid var(--border-color);
+			padding-bottom: 1rem;
+		}
+
+		h1 {
+			margin: 0;
+			font-size: 1.4rem;
+			color: var(--primary-color);
+			font-weight: 600;
+		}
+
+		.controls {
+			display: flex;
+			align-items: center;
+			gap: 0.75rem;
+		}
+
+		.station-select {
+			padding: 0.5rem 0.75rem;
+			border: 1px solid var(--border-color);
+			border-radius: 6px;
+			background-color: var(--surface-color);
+			color: var(--text-color);
+			font-weight: 600;
+			cursor: pointer;
+		}
+
+		.station-select:hover {
+			border-color: var(--accent-color);
+		}
+
+		.refresh-btn {
+			background-color: var(--accent-color);
+			color: #062033;
+			border: 1px solid var(--accent-color);
+			padding: 0.5rem 1rem;
+			border-radius: 6px;
+			cursor: pointer;
+			font-weight: 600;
+			transition: background-color 0.2s ease, border-color 0.2s ease;
+		}
+
+		.refresh-btn:hover {
+			background-color: var(--accent-hover);
+			border-color: var(--accent-hover);
+		}
+
+		.station-select:focus-visible,
+		.refresh-btn:focus-visible {
+			outline: 3px solid rgba(56, 189, 248, 0.35);
+			outline-offset: 2px;
+		}
+
+		.table-wrapper {
+			overflow-x: auto;
+		}
+
+		table {
+			width: 100%;
+			border-collapse: collapse;
+			text-align: left;
+		}
+
+		th,
+		td {
+			padding: 0.75rem 1rem;
+			border-bottom: 1px solid var(--border-color);
+		}
+
+		th {
+			background-color: var(--surface-color);
+			color: var(--muted-color);
+			font-size: 0.85rem;
+			text-transform: uppercase;
+			letter-spacing: 0.05em;
+		}
+
+		tbody tr:hover td:not([style*="background-color"]) {
+			background-color: var(--surface-hover);
+		}
+
+		.status {
+			font-size: 0.9rem;
+			color: var(--muted-color);
+			margin-top: 1rem;
+			text-align: center;
+		}
+
+		.error {
+			color: var(--error-color);
+		}
+
+		@media (max-width: 600px) {
+			body {
+				padding: 1rem;
+			}
+
+			.container {
+				padding: 1.25rem;
+			}
+
+			.header {
+				align-items: flex-start;
+				flex-direction: column;
+				gap: 1rem;
+			}
+
+			th,
+			td {
+				padding: 0.65rem 0.75rem;
+			}
+		}
+	</style>
+</head>
 
 <body>
-	<h1>Hello World</h1>
-	<p>I'm hosted with GitHub Pages.</p>
+
+	<div class="container">
+		<div class="header">
+			<h1>FPS Wind History (Past 2 Hours)</h1>
+			<div class="controls">
+				<select id="station-select" class="station-select" onchange="fetchWindData()">
+					<option value="FPS">FPS</option>
+					<option value="UT7">North POM</option>
+					<option value="KSLC">KSLC</option>
+					<option value="KPVU">KPVU</option>
+					<option value="KU42">KU42</option>
+				</select>
+				<button class="refresh-btn" onclick="fetchWindData()">Refresh</button>
+			</div>
+		</div>
+
+		<div class="table-wrapper">
+			<table>
+				<thead>
+					<tr>
+						<th>Time</th>
+						<th>Wind Direction</th>
+						<th>Wind Speed</th>
+						<th>Wind Gust</th>
+					</tr>
+				</thead>
+				<tbody id="wind-data">
+					<tr>
+						<td colspan="4" style="text-align: center;">Loading weather data...</td>
+					</tr>
+				</tbody>
+			</table>
+		</div>
+
+		<div id="status-msg" class="status"></div>
+	</div>
+
+	<script>
+		// Windy-style wind color scale. Anchor colors keyed to the legend mph values.
+		const WIND_COLOR_STOPS = [
+			{ mph: 0, rgb: [98, 113, 184] },
+			{ mph: 7, rgb: [61, 110, 163] },
+			{ mph: 14, rgb: [74, 146, 148] },
+			{ mph: 18, rgb: [76, 164, 76] },
+			{ mph: 22, rgb: [162, 135, 64] },
+			{ mph: 26, rgb: [141, 63, 92] },
+			{ mph: 30, rgb: [151, 75, 145] }
+		];
+
+		// Return an interpolated rgb color from the scale for a given mph value.
+		function windColor(mph) {
+			if (mph == null || isNaN(mph)) return null;
+
+			const stops = WIND_COLOR_STOPS;
+			if (mph <= stops[0].mph) return stops[0].rgb.slice();
+			if (mph >= stops[stops.length - 1].mph) return stops[stops.length - 1].rgb.slice();
+
+			for (let i = 0; i < stops.length - 1; i++) {
+				const a = stops[i], b = stops[i + 1];
+				if (mph >= a.mph && mph <= b.mph) {
+					const t = (mph - a.mph) / (b.mph - a.mph);
+					return a.rgb.map((c, j) => Math.round(c + (b.rgb[j] - c) * t));
+				}
+			}
+			return stops[stops.length - 1].rgb.slice();
+		}
+
+		// Build a style string that colors a cell background and picks readable text.
+		function windStyle(mph) {
+			const rgb = windColor(mph);
+			if (!rgb) return "";
+			const [r, g, b] = rgb;
+			// Relative luminance to choose black/white text for contrast.
+			const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+			const textColor = luminance > 0.6 ? "#1e293b" : "#ffffff";
+			return `background-color: rgb(${r}, ${g}, ${b}); color: ${textColor};`;
+		}
+
+		// Convert an observation value to mph (number). Returns null when missing.
+		function toMph(item) {
+			if (!item || item.value == null) return null;
+
+			const unit = item.unitCode || "";
+			if (unit.includes("km_h")) return item.value * 0.621371; // km/h to mph
+			if (unit.includes("m_s")) return item.value * 2.23694;  // m/s to mph
+			return item.value;
+		}
+
+		// Helper to extract and convert speed dynamically
+		function parseSpeedToMph(item) {
+			const mph = toMph(item);
+			if (mph == null) return "N/A";
+			return `${Math.round(mph)} mph`;
+		}
+
+		async function fetchWindData() {
+			const tbody = document.getElementById("wind-data");
+			const statusMsg = document.getElementById("status-msg");
+
+			tbody.innerHTML = `<tr><td colspan="4" style="text-align: center;">Loading weather data...</td></tr>`;
+			statusMsg.textContent = "";
+
+			// Timestamp for 2 hours ago (ISO format required by NWS API)
+			const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+			const stationId = document.getElementById("station-select").value || "FPS";
+			const url = `https://api.weather.gov/stations/${stationId}/observations?start=${twoHoursAgo}`;
+
+			try {
+				const response = await fetch(url, {
+					headers: {
+						"User-Agent": "WindDashboardApp/1.0 (contact@example.com)"
+					}
+				});
+
+				if (!response.ok) {
+					throw new Error(`HTTP Error: ${response.status}`);
+				}
+
+				const data = await response.json();
+				const features = data.features || [];
+
+				if (features.length === 0) {
+					tbody.innerHTML = `<tr><td colspan="4" style="text-align: center;">No observations reported in the last 2 hours.</td></tr>`;
+					return;
+				}
+
+				// Render rows
+				tbody.innerHTML = features.map(item => {
+					const p = item.properties;
+					const timeStr = new Date(p.timestamp).toLocaleTimeString([], {
+						hour: '2-digit',
+						minute: '2-digit'
+					});
+
+					const dirValue = p.windDirection?.value != null ? Math.round(p.windDirection.value) : null;
+					const dir = dirValue != null ? `${dirValue}` : "N/A";
+					const speed = parseSpeedToMph(p.windSpeed);
+					const gust = parseSpeedToMph(p.windGust);
+					const speedStyle = windStyle(toMph(p.windSpeed));
+					const gustStyle = windStyle(toMph(p.windGust));
+
+					return `
+            <tr>
+              <td><strong>${timeStr}</strong></td>
+              <td>${dir}</td>
+              <td style="${speedStyle}">${speed}</td>
+              <td style="${gustStyle}">${gust}</td>
+            </tr>
+          `;
+				}).join("");
+
+				statusMsg.textContent = `Last updated: ${new Date().toLocaleTimeString()}`;
+
+			} catch (err) {
+				tbody.innerHTML = `<tr><td colspan="4" style="text-align: center;" class="error">Failed to fetch data.</td></tr>`;
+				statusMsg.textContent = `Error: ${err.message}`;
+			}
+		}
+
+		// Auto-fetch when the page loads
+		fetchWindData();
+	</script>
+
 </body>
 
 </html>
