@@ -174,7 +174,7 @@
 
 	<div class="container">
 		<div class="header">
-			<h1>FPS Wind History (Past 2 Hours)</h1>
+			<h1 id="page-title">FPS Wind History (Past 2 Hours)</h1>
 			<div class="controls">
 				<select id="station-select" class="station-select" onchange="fetchWindData()">
 					<option value="FPS">FPS</option>
@@ -294,7 +294,12 @@
 
 			// Timestamp for 2 hours ago (ISO format required by NWS API)
 			const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
-			const stationId = document.getElementById("station-select").value || "FPS";
+			const stationSelect = document.getElementById("station-select");
+			const stationId = stationSelect.value || "FPS";
+			const title = document.getElementById("page-title");
+			if (title) {
+				title.textContent = `${stationId} Wind History (Past 2 Hours)`;
+			}
 			const url = `https://api.weather.gov/stations/${stationId}/observations?start=${twoHoursAgo}`;
 
 			try {
