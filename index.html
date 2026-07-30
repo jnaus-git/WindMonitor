@@ -181,7 +181,7 @@
 					<option value="UT7">North POM</option>
 					<option value="KSLC">KSLC</option>
 					<option value="KPVU">KPVU</option>
-					<option value="KU42">KU42</option>
+					<option value="KSVR">KSVR</option>
 				</select>
 				<button class="refresh-btn" onclick="fetchWindData()">Refresh</button>
 			</div>
@@ -192,14 +192,15 @@
 				<thead>
 					<tr>
 						<th>Time</th>
-						<th>Wind Direction</th>
-						<th>Wind Speed</th>
-						<th>Wind Gust</th>
+						<th>Dir</th>
+						<th>Speed</th>
+						<th>Gust</th>
+						<th>Temp</th>
 					</tr>
 				</thead>
 				<tbody id="wind-data">
 					<tr>
-						<td colspan="4" style="text-align: center;">Loading weather data...</td>
+						<td colspan="5" style="text-align: center;">Loading weather data...</td>
 					</tr>
 				</tbody>
 			</table>
@@ -263,14 +264,32 @@
 		function parseSpeedToMph(item) {
 			const mph = toMph(item);
 			if (mph == null) return "N/A";
-			return `${Math.round(mph)} mph`;
+			return `${Math.round(mph)}`;
+		}
+
+		// Convert temperature to Fahrenheit for display.
+		function parseTemperatureF(item) {
+			if (!item || item.value == null) return "N/A";
+
+			const value = Number(item.value);
+			if (isNaN(value)) return "N/A";
+
+			const unit = item.unitCode || "";
+			if (unit.includes("degC") || unit.includes("C")) {
+				return `${Math.round((value * 9 / 5) + 32)}`;
+			}
+			if (unit.includes("degF") || unit.includes("F")) {
+				return `${Math.round(value)}`;
+			}
+
+			return `${Math.round(value)} ${unit}`;
 		}
 
 		async function fetchWindData() {
 			const tbody = document.getElementById("wind-data");
 			const statusMsg = document.getElementById("status-msg");
 
-			tbody.innerHTML = `<tr><td colspan="4" style="text-align: center;">Loading weather data...</td></tr>`;
+			tbody.innerHTML = `<tr><td colspan="5" style="text-align: center;">Loading weather data...</td></tr>`;
 			statusMsg.textContent = "";
 
 			// Timestamp for 2 hours ago (ISO format required by NWS API)
@@ -293,7 +312,7 @@
 				const features = data.features || [];
 
 				if (features.length === 0) {
-					tbody.innerHTML = `<tr><td colspan="4" style="text-align: center;">No observations reported in the last 2 hours.</td></tr>`;
+					tbody.innerHTML = `<tr><td colspan="5" style="text-align: center;">No observations reported in the last 2 hours.</td></tr>`;
 					return;
 				}
 
@@ -302,13 +321,15 @@
 					const p = item.properties;
 					const timeStr = new Date(p.timestamp).toLocaleTimeString([], {
 						hour: '2-digit',
-						minute: '2-digit'
+						minute: '2-digit',
+						hour12: false
 					});
 
 					const dirValue = p.windDirection?.value != null ? Math.round(p.windDirection.value) : null;
 					const dir = dirValue != null ? `${dirValue}` : "N/A";
 					const speed = parseSpeedToMph(p.windSpeed);
 					const gust = parseSpeedToMph(p.windGust);
+					const temperature = parseTemperatureF(p.temperature);
 					const speedStyle = windStyle(toMph(p.windSpeed));
 					const gustStyle = windStyle(toMph(p.windGust));
 
@@ -318,14 +339,19 @@
               <td>${dir}</td>
               <td style="${speedStyle}">${speed}</td>
               <td style="${gustStyle}">${gust}</td>
+              <td>${temperature}</td>
             </tr>
           `;
 				}).join("");
 
-				statusMsg.textContent = `Last updated: ${new Date().toLocaleTimeString()}`;
+				statusMsg.textContent = `Last updated: ${new Date().toLocaleTimeString([], {
+					hour: '2-digit',
+					minute: '2-digit',
+					hour12: false
+				})}`;
 
 			} catch (err) {
-				tbody.innerHTML = `<tr><td colspan="4" style="text-align: center;" class="error">Failed to fetch data.</td></tr>`;
+				tbody.innerHTML = `<tr><td colspan="5" style="text-align: center;" class="error">Failed to fetch data.</td></tr>`;
 				statusMsg.textContent = `Error: ${err.message}`;
 			}
 		}
